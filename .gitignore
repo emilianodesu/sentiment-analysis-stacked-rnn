@@ -20,6 +20,10 @@ build/
 .DS_Store
 Thumbs.db
 
+# Test cache
+.hypothesis/
+.pytest_cache/
+
 # Project outputs
 outputs/*
 !outputs/.gitkeep
