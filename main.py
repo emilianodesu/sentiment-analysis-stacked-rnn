@@ -82,7 +82,11 @@ def main() -> None:
         f"{len(test_loader.dataset)} test samples.\n"
     )
 
-    # Step 5: Create models
+    # Step 5: Create and train LSTM
+    print("=" * 60)
+    print("TRAINING LSTM")
+    print("=" * 60)
+    set_seed(config.SEED)
     lstm_model = SentimentRNN(
         vocab_size=config.VOCAB_SIZE,
         embedding_dim=config.EMBEDDING_DIM,
@@ -92,6 +96,21 @@ def main() -> None:
         rnn_dropout=config.RNN_DROPOUT,
         embed_dropout=config.EMBED_DROPOUT,
     )
+    print("=== LSTM Model ===")
+    print_model_summary(lstm_model)
+    print()
+    lstm_history = train_model(
+        model=lstm_model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        device=device,
+    )
+
+    # Step 6: Create and train GRU
+    print("\n" + "=" * 60)
+    print("TRAINING GRU")
+    print("=" * 60)
+    set_seed(config.SEED)
     gru_model = SentimentRNN(
         vocab_size=config.VOCAB_SIZE,
         embedding_dim=config.EMBEDDING_DIM,
@@ -101,29 +120,9 @@ def main() -> None:
         rnn_dropout=config.RNN_DROPOUT,
         embed_dropout=config.EMBED_DROPOUT,
     )
-
-    print("=== LSTM Model ===")
-    print_model_summary(lstm_model)
     print("\n=== GRU Model ===")
     print_model_summary(gru_model)
     print()
-
-    # Step 6: Train both models
-    print("=" * 60)
-    print("TRAINING LSTM")
-    print("=" * 60)
-    set_seed(config.SEED)
-    lstm_history = train_model(
-        model=lstm_model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        device=device,
-    )
-
-    print("\n" + "=" * 60)
-    print("TRAINING GRU")
-    print("=" * 60)
-    set_seed(config.SEED)
     gru_history = train_model(
         model=gru_model,
         train_loader=train_loader,
