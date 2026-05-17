@@ -1,0 +1,185 @@
+\section{Arquitectura del Modelo}
+
+El modelo \texttt{SentimentRNN} es una red neuronal recurrente apilada configurable,
+diseñada para clasificación binaria de sentimiento. Su arquitectura soporta tanto
+celdas LSTM como GRU como tipo de capa recurrente, permitiendo una comparación
+directa entre ambas variantes bajo condiciones idénticas. A continuación se describe
+cada componente de la arquitectura, cuyo resumen se presenta en la
+Tabla~\ref{tab:arquitectura}.
+
+\subsection{Capa de Embedding}
+
+La primera capa del modelo es un embedding que transforma cada token del vocabulario
+en un vector denso de representación distribuida. El vocabulario tiene un tamaño de
+25,000 tokens y cada uno se proyecta a un espacio de dimensión 128. Esta capa
+contiene $25{,}000 \times 128 = 3{,}200{,}000$ parámetros entrenables y constituye
+la mayor parte de los parámetros del modelo.
+
+\subsection{Capas Recurrentes Apiladas}
+
+El modelo utiliza 2 capas recurrentes apiladas, cada una con 256 unidades ocultas.
+La salida de la primera capa recurrente (secuencia de estados ocultos) alimenta
+la entrada de la segunda capa, permitiendo al modelo aprender representaciones
+jerárquicas de mayor nivel de abstracción. Dependiendo de la configuración, las
+capas pueden ser LSTM o GRU, manteniendo una interfaz idéntica para ambas variantes.
+
+\subsection{Estrategia de Regularización}
+
+Para prevenir el sobreajuste, el modelo implementa una estrategia de regularización
+basada en dropout en dos puntos:
+
+\begin{itemize}
+    \item \textbf{Dropout post-embedding} ($p = 0.5$): aplicado inmediatamente después
+    de la capa de embedding, antes de alimentar la secuencia a las capas recurrentes.
+    Este dropout agresivo actúa como una forma de aumento de datos a nivel de
+    representación.
+    \item \textbf{Dropout entre capas RNN} ($p = 0.3$): aplicado entre las capas
+    recurrentes apiladas mediante el parámetro \texttt{dropout} del módulo RNN de
+    PyTorch. Este regulariza las representaciones intermedias entre capas.
+\end{itemize}
+
+\subsection{Capa de Clasificación}
+
+La capa final es una transformación lineal que recibe el estado oculto de la última
+capa recurrente en el último paso temporal, con dimensión $256 \to 1$. La salida
+es un logit escalar que, al aplicarle la función sigmoide, produce la probabilidad
+de que la reseña sea positiva. Esta capa contiene $256 + 1 = 257$ parámetros
+(pesos más bias).
+
+\subsection{Inicialización del Bias de la Compuerta de Olvido}
+
+Para las variantes LSTM, el bias de la compuerta de olvido (\textit{forget gate})
+se inicializa a 1.0 siguiendo la recomendación de \cite{jozefowicz2015}. Esta
+inicialización favorece que la celda LSTM recuerde información desde las primeras
+etapas del entrenamiento, evitando que el gradiente se desvanezca prematuramente
+a través de la compuerta de olvido antes de que el modelo haya aprendido qué
+información retener.
+
+
+\subsection{Resumen de la Arquitectura}
+
+\begin{table}[H]
+\centering
+\caption{Arquitectura completa del modelo \texttt{SentimentRNN}. Se muestran las
+dimensiones de entrada y salida de cada capa, así como el número de parámetros
+entrenables para las variantes LSTM y GRU.}
+\label{tab:arquitectura}
+\begin{tabular}{lllll}
+\toprule
+\textbf{Capa} & \textbf{Tipo} & \textbf{Entrada} & \textbf{Salida} & \textbf{Parámetros} \\
+\midrule
+Embedding       & \texttt{nn.Embedding}    & 25,000 & 128 & 3,200,000 \\
+Dropout (embed) & \texttt{nn.Dropout(0.5)} & 128    & 128 & 0 \\
+RNN Capa 1      & LSTM/GRU                 & 128    & 256 & LSTM: 394,240 / GRU: 295,680 \\
+RNN Capa 2      & LSTM/GRU                 & 256    & 256 & LSTM: 525,312 / GRU: 393,984 \\
+Lineal          & \texttt{nn.Linear}       & 256    & 1   & 257 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Implementación en Código}
+
+A continuación se presentan los fragmentos clave de la implementación en
+\texttt{model.py} que materializan la arquitectura descrita.
+
+% --- Definición de capas del modelo (SentimentRNN.__init__) ---
+El constructor de la clase \texttt{SentimentRNN} define las capas del modelo:
+embedding, dropout, RNN apilada y capa lineal de salida. La selección entre
+LSTM y GRU se realiza dinámicamente mediante el parámetro \texttt{rnn\_type}.
+
+\begin{minted}{python}
+class SentimentRNN(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        embedding_dim: int,
+        hidden_size: int,
+        num_layers: int,
+        rnn_type: str,
+        rnn_dropout: float,
+        embed_dropout: float,
+    ) -> None:
+        super().__init__()
+
+        if rnn_type not in ("LSTM", "GRU"):
+            raise ValueError(
+                f"Invalid rnn_type '{rnn_type}'. "
+                f"Supported options: 'LSTM', 'GRU'"
+            )
+
+        self.rnn_type = rnn_type
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+        # Embedding layer
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+
+        # Dropout after embedding
+        self.embed_dropout = nn.Dropout(p=embed_dropout)
+
+        # Stacked RNN (LSTM or GRU)
+        rnn_cls = nn.LSTM if rnn_type == "LSTM" else nn.GRU
+        self.rnn = rnn_cls(
+            input_size=embedding_dim,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=rnn_dropout,
+            batch_first=True,
+        )
+
+        # Output linear layer
+        self.fc = nn.Linear(hidden_size, 1)
+\end{minted}
+
+% --- Inicialización del bias de forget gate a 1.0 ---
+La inicialización del bias de la compuerta de olvido a 1.0 se aplica únicamente
+a las variantes LSTM. El bias del módulo LSTM de PyTorch se organiza como un
+vector concatenado de cuatro compuertas, cada una de tamaño \texttt{hidden\_size}.
+El segmento correspondiente a la compuerta de olvido ocupa las posiciones
+$[n/4, n/2)$ del vector de bias.
+
+\begin{minted}{python}
+        # Initialize LSTM forget gate bias to 1.0 to encourage
+        # remembering early in training (Jozefowicz et al., 2015)
+        if rnn_type == "LSTM":
+            for name, param in self.rnn.named_parameters():
+                if "bias" in name:
+                    # LSTM bias is organized as:
+                    # [input_gate, forget_gate, cell_gate, output_gate]
+                    # each of size hidden_size.
+                    # Set forget gate bias (positions n//4 to n//2)
+                    # to 1.0 for better gradient flow.
+                    n = param.size(0)
+                    param.data[n // 4 : n // 2].fill_(1.0)
+\end{minted}
+
+% --- Método forward: flujo de datos embedding → RNN → fc ---
+El método \texttt{forward} implementa el flujo de datos completo: los índices de
+tokens pasan por el embedding y dropout, luego por las capas recurrentes apiladas,
+y finalmente el estado oculto de la última capa se proyecta a un logit escalar.
+
+\begin{minted}{python}
+    def forward(self, x: Tensor) -> Tensor:
+        # Embedding: (batch, seq_len) -> (batch, seq_len, embed_dim)
+        embedded = self.embedding(x)
+
+        # Apply dropout after embedding
+        embedded = self.embed_dropout(embedded)
+
+        # RNN forward pass
+        # output: (batch, seq_len, hidden_size)
+        _output, hidden = self.rnn(embedded)
+
+        # Extract hidden state from the final layer
+        if self.rnn_type == "LSTM":
+            # h_n: (num_layers, batch, hidden_size)
+            final_hidden = hidden[0][-1]  # (batch, hidden_size)
+        else:
+            # h_n: (num_layers, batch, hidden_size)
+            final_hidden = hidden[-1]  # (batch, hidden_size)
+
+        # Linear: (batch, hidden_size) -> (batch, 1)
+        logits = self.fc(final_hidden)
+
+        return logits
+\end{minted}

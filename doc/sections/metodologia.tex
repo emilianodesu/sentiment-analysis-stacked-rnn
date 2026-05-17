@@ -1,0 +1,222 @@
+\section{Metodología de Entrenamiento}
+
+Esta sección describe la metodología completa de entrenamiento utilizada en el experimento,
+incluyendo el preprocesamiento de datos, la configuración del optimizador, las técnicas de
+regularización y los mecanismos de monitoreo. Todos los hiperparámetros se centralizan en
+un archivo de configuración para garantizar la reproducibilidad del experimento.
+
+% ==============================================================================
+\subsection{Preprocesamiento de Datos}
+
+El dataset utilizado es IMDB, que contiene 50,000 reseñas de películas etiquetadas como
+positivas o negativas. Las 25,000 muestras originales de entrenamiento se dividen mediante
+permutación aleatoria (con semilla fija \texttt{seed=42}) en 20,000 muestras de entrenamiento
+y 5,000 de validación. El conjunto de prueba se mantiene intacto con 25,000 muestras
+independientes del split de test de IMDB.
+
+El pipeline de preprocesamiento de texto consiste en los siguientes pasos:
+\begin{enumerate}
+    \item \textbf{Remoción de etiquetas HTML:} Se eliminan todas las etiquetas HTML
+          (e.g., \texttt{<br />}, \texttt{<p>}) mediante expresión regular.
+    \item \textbf{Conversión a minúsculas:} Todo el texto se normaliza a minúsculas.
+    \item \textbf{Eliminación de caracteres no alfabéticos:} Se conservan únicamente
+          letras y espacios, removiendo puntuación y dígitos.
+    \item \textbf{Tokenización por espacios:} El texto limpio se divide en tokens
+          separados por espacios en blanco.
+    \item \textbf{Construcción de vocabulario:} Se construye un vocabulario con un máximo
+          de 25,000 palabras, considerando únicamente aquellas con frecuencia mínima de 2
+          en el conjunto de entrenamiento (20K muestras). Se reservan los índices 0 y 1
+          para los tokens especiales \texttt{<PAD>} y \texttt{<UNK>} respectivamente.
+    \item \textbf{Padding/truncamiento:} Todas las secuencias se ajustan a una longitud
+          fija de 200 tokens. Las secuencias más largas se truncan y las más cortas se
+          rellenan con ceros al final.
+\end{enumerate}
+
+La función \texttt{clean\_text} implementa los pasos 1--4 del preprocesamiento:
+
+% --- Función clean_text: preprocesamiento de texto ---
+\begin{minted}{python}
+def clean_text(text: str) -> str:
+    """Clean a review text by removing HTML, lowercasing,
+    removing punctuation, and tokenizing."""
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # Convert to lowercase
+    text = text.lower()
+    # Remove non-alpha characters (keep only letters and spaces)
+    text = re.sub(r'[^a-z\s]', '', text)
+    # Tokenize by splitting on whitespace and rejoin
+    tokens = text.split()
+    return ' '.join(tokens)
+\end{minted}
+
+La función \texttt{pad\_sequence} implementa el ajuste de longitud fija, truncando secuencias
+largas y rellenando con ceros las secuencias cortas:
+
+% --- Función pad_sequence: truncamiento y padding ---
+\begin{minted}{python}
+def pad_sequence(encoded: list[int], max_len: int) -> list[int]:
+    """Pad or truncate an encoded sequence to exactly max_len.
+
+    If the sequence is longer than max_len, truncate it.
+    If shorter, pad with zeros (PAD=0) at the end.
+    """
+    if len(encoded) > max_len:
+        return encoded[:max_len]
+    elif len(encoded) < max_len:
+        return encoded + [0] * (max_len - len(encoded))
+    else:
+        return list(encoded)
+\end{minted}
+
+% ==============================================================================
+\subsection{Función de Pérdida y Optimizador}
+
+Se utiliza \texttt{BCEWithLogitsLoss} (Binary Cross-Entropy con logits) como función de
+pérdida. Esta función combina internamente una capa sigmoide con la entropía cruzada
+binaria, proporcionando mayor estabilidad numérica que aplicar sigmoide y BCE por separado.
+Para la clasificación final, se aplica un umbral de 0.5 sobre la salida sigmoide del logit:
+una predicción se considera positiva si $\sigma(\hat{y}) > 0.5$.
+
+El optimizador seleccionado es Adam \cite{kingma2015} con los siguientes hiperparámetros:
+\begin{itemize}
+    \item Learning rate: $\eta = 0.001$
+    \item $\beta_1 = 0.9$ (media móvil exponencial del primer momento)
+    \item $\beta_2 = 0.999$ (media móvil exponencial del segundo momento)
+\end{itemize}
+
+El siguiente fragmento muestra la configuración del criterio de pérdida y el optimizador:
+
+% --- Configuración de criterion y optimizer ---
+\begin{minted}{python}
+# Loss function and optimizer
+criterion = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+# Early stopping state
+best_val_loss = float("inf")
+epochs_without_improvement = 0
+
+# Ensure checkpoint directory exists
+os.makedirs(checkpoint_dir, exist_ok=True)
+
+# Checkpoint path based on model's rnn_type
+checkpoint_path = os.path.join(
+    checkpoint_dir, f"{model.rnn_type}_best.pt"
+)
+
+# Global step counter for gradient monitoring
+global_step = 0
+\end{minted}
+
+% ==============================================================================
+\subsection{Bucle de Entrenamiento}
+
+El bucle de entrenamiento implementa el flujo estándar de forward pass, cálculo de pérdida,
+backward pass y actualización de parámetros. Adicionalmente, se registran las normas L2 de
+los gradientes por capa durante los primeros 100 pasos globales de entrenamiento, lo que
+permite analizar la estabilidad del flujo de gradientes en las etapas iniciales.
+
+% --- Bucle de entrenamiento: forward, backward, gradient monitoring ---
+\begin{minted}{python}
+for inputs, labels in train_loader:
+    inputs = inputs.to(device)
+    labels = labels.to(device).float()
+
+    # Forward pass
+    optimizer.zero_grad()
+    logits = model(inputs).squeeze(1)
+    loss = criterion(logits, labels)
+
+    # Backward pass
+    loss.backward()
+
+    # Record gradient norms for the first 100 steps
+    global_step += 1
+    if global_step <= GRADIENT_MONITOR_STEPS:
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                grad_norm = param.grad.data.norm(2).item()
+                if name not in history.gradient_norms:
+                    history.gradient_norms[name] = []
+                history.gradient_norms[name].append(grad_norm)
+\end{minted}
+
+% ==============================================================================
+\subsection{Gradient Clipping}
+
+Para prevenir la explosión de gradientes (\textit{exploding gradients}), se aplica gradient
+clipping con norma L2 máxima de 5.0. Este mecanismo se ejecuta después del cálculo de
+gradientes (\texttt{loss.backward()}) y antes del paso del optimizador
+(\texttt{optimizer.step()}), recortando la norma global del vector de gradientes cuando
+excede el umbral configurado.
+
+% --- Gradient clipping ---
+\begin{minted}{python}
+    # Gradient clipping
+    torch.nn.utils.clip_grad_norm_(
+        model.parameters(), max_norm=clip_norm
+    )
+
+    # Optimizer step
+    optimizer.step()
+
+    # Track metrics
+    running_loss += loss.item() * inputs.size(0)
+    predictions = (torch.sigmoid(logits) > 0.5).long()
+    correct += (predictions == labels.long()).sum().item()
+    total += labels.size(0)
+\end{minted}
+
+% ==============================================================================
+\subsection{Early Stopping}
+
+Se implementa early stopping para detener el entrenamiento cuando la pérdida de validación
+deja de mejorar, evitando así el sobreajuste. El mecanismo monitorea la pérdida de
+validación al final de cada época: si no se observa mejora durante 5 épocas consecutivas
+(\texttt{patience=5}), el entrenamiento se detiene anticipadamente. El número máximo de
+épocas es 10. Cuando se detecta una mejora, se guarda un checkpoint del mejor modelo.
+
+% --- Early stopping: comparación val_loss y guardado de checkpoint ---
+\begin{minted}{python}
+# --- Early stopping check ---
+if epoch_val_loss < best_val_loss:
+    best_val_loss = epoch_val_loss
+    epochs_without_improvement = 0
+    # Save best checkpoint
+    torch.save(model.state_dict(), checkpoint_path)
+    print(f"  Best model saved to {checkpoint_path}")
+else:
+    epochs_without_improvement += 1
+    print(
+        f"  No improvement "
+        f"({epochs_without_improvement}/{patience})"
+    )
+    if epochs_without_improvement >= patience:
+        print(
+            f"  Early stopping triggered after "
+            f"epoch {epoch + 1}"
+        )
+        break
+\end{minted}
+
+% ==============================================================================
+\subsection{Reproducibilidad y Configuración}
+
+Para garantizar la reproducibilidad completa del experimento, se fija la semilla
+\texttt{seed=42} en todos los generadores de números aleatorios relevantes:
+\begin{itemize}
+    \item \texttt{random.seed(42)} — módulo \texttt{random} de Python
+    \item \texttt{np.random.seed(42)} — NumPy
+    \item \texttt{torch.manual\_seed(42)} — PyTorch CPU
+    \item \texttt{torch.cuda.manual\_seed\_all(42)} — PyTorch CUDA (todas las GPUs)
+    \item \texttt{torch.backends.cudnn.deterministic = True} — cuDNN determinístico
+    \item \texttt{torch.backends.cudnn.benchmark = False} — desactiva autotuning
+\end{itemize}
+
+El tamaño de batch utilizado es de 64 muestras. El conjunto de prueba consta de 25,000
+muestras del split de test original de IMDB, evaluado una única vez al final del
+entrenamiento con el mejor checkpoint guardado. Durante los primeros 100 pasos de
+entrenamiento se registran las normas L2 de los gradientes por capa, lo que permite
+diagnosticar problemas de vanishing o exploding gradients en las etapas iniciales del
+aprendizaje.

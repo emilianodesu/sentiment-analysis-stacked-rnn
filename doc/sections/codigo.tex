@@ -1,0 +1,295 @@
+\section{Código Fuente}
+\label{sec:codigo}
+
+Esta sección presenta los fragmentos más relevantes del código fuente del proyecto, seleccionados para ilustrar las decisiones de implementación discutidas en secciones anteriores. Se omiten imports, docstrings extensos y código repetitivo para enfocarse en la lógica central.
+
+% =============================================================================
+% FRAGMENTOS DE model.py
+% =============================================================================
+
+\subsection{Definición del Modelo}
+
+El constructor de la clase \texttt{SentimentRNN} define la arquitectura completa del modelo: capa de embedding, capas recurrentes apiladas (LSTM o GRU) y capa de clasificación lineal. La selección dinámica del tipo de RNN permite comparar ambas arquitecturas con una sola implementación.
+
+% --- Clase SentimentRNN.__init__ — Definición de capas ---
+\begin{minted}{python}
+class SentimentRNN(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        embedding_dim: int,
+        hidden_size: int,
+        num_layers: int,
+        rnn_type: str,
+        rnn_dropout: float,
+        embed_dropout: float,
+    ) -> None:
+        super().__init__()
+
+        if rnn_type not in ("LSTM", "GRU"):
+            raise ValueError(
+                f"Invalid rnn_type '{rnn_type}'. "
+                f"Supported: 'LSTM', 'GRU'"
+            )
+
+        self.rnn_type = rnn_type
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+        # Embedding layer
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.embed_dropout = nn.Dropout(p=embed_dropout)
+
+        # Stacked RNN (LSTM or GRU)
+        rnn_cls = nn.LSTM if rnn_type == "LSTM" else nn.GRU
+        self.rnn = rnn_cls(
+            input_size=embedding_dim,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=rnn_dropout,
+            batch_first=True,
+        )
+
+        # Output linear layer
+        self.fc = nn.Linear(hidden_size, 1)
+\end{minted}
+
+La inicialización del bias de la compuerta de olvido (\textit{forget gate}) a 1.0 es una técnica propuesta por \cite{jozefowicz2015} que favorece la retención de información en las primeras etapas del entrenamiento, evitando que la celda LSTM descarte prematuramente el estado de memoria.
+
+% --- Inicialización del bias de forget gate a 1.0 ---
+\begin{minted}{python}
+        # Initialize LSTM forget gate bias to 1.0 to encourage
+        # remembering early in training (Jozefowicz et al., 2015).
+        # The LSTM bias tensor is structured as:
+        #   [input_gate | forget_gate | cell_gate | output_gate]
+        # each segment of size hidden_size. We set the forget gate
+        # segment (indices n//4 to n//2) to 1.0.
+        if rnn_type == "LSTM":
+            for name, param in self.rnn.named_parameters():
+                if "bias" in name:
+                    n = param.size(0)
+                    param.data[n // 4 : n // 2].fill_(1.0)
+
+        # Output linear layer
+        self.fc = nn.Linear(hidden_size, 1)
+\end{minted}
+
+El método \texttt{forward} implementa el flujo de datos completo: la secuencia de índices pasa por la capa de embedding, luego por las capas recurrentes apiladas, y finalmente el estado oculto de la última capa se proyecta a un logit escalar para clasificación binaria.
+
+% --- Método forward — Flujo embedding → RNN → fc ---
+\begin{minted}{python}
+    def forward(self, x: Tensor) -> Tensor:
+        # Embedding: (batch, seq_len) -> (batch, seq_len, emb_dim)
+        embedded = self.embedding(x)
+        embedded = self.embed_dropout(embedded)
+
+        # RNN forward pass
+        # output: (batch, seq_len, hidden_size)
+        _output, hidden = self.rnn(embedded)
+
+        # Extract hidden state from the final layer
+        if self.rnn_type == "LSTM":
+            # h_n: (num_layers, batch, hidden_size)
+            final_hidden = hidden[0][-1]
+        else:
+            final_hidden = hidden[-1]
+
+        # Linear: (batch, hidden_size) -> (batch, 1)
+        logits = self.fc(final_hidden)
+        return logits
+\end{minted}
+
+% =============================================================================
+% FRAGMENTOS DE train.py
+% =============================================================================
+
+\subsection{Entrenamiento}
+
+La configuración del criterio de pérdida y el optimizador establece los componentes fundamentales del bucle de entrenamiento. Se utiliza \texttt{BCEWithLogitsLoss} que combina la función sigmoide con la entropía cruzada binaria en una sola operación numéricamente estable.
+
+% --- Configuración de criterion y optimizer ---
+\begin{minted}{python}
+    # Move model to device
+    model = model.to(device)
+
+    # Loss function and optimizer
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    # Early stopping state
+    best_val_loss = float("inf")
+    epochs_without_improvement = 0
+
+    # Checkpoint path based on model's rnn_type
+    checkpoint_path = os.path.join(
+        checkpoint_dir, f"{model.rnn_type}_best.pt"
+    )
+
+    # Global step counter for gradient monitoring
+    global_step = 0
+\end{minted}
+
+El bucle interno de entrenamiento ejecuta el paso forward, calcula la pérdida, propaga los gradientes y registra las normas L2 de los gradientes por capa durante los primeros 100 pasos globales. Este monitoreo permite detectar problemas de \textit{vanishing} o \textit{exploding gradients}.
+
+% --- Bucle de entrenamiento: forward, backward, gradient monitoring ---
+\begin{minted}{python}
+        for inputs, labels in train_loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device).float()
+
+            # Forward pass
+            optimizer.zero_grad()
+            logits = model(inputs).squeeze(1)
+            loss = criterion(logits, labels)
+
+            # Backward pass
+            loss.backward()
+
+            # Record gradient norms for first 100 steps
+            global_step += 1
+            if global_step <= GRADIENT_MONITOR_STEPS:
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        grad_norm = param.grad.data.norm(2).item()
+                        if name not in history.gradient_norms:
+                            history.gradient_norms[name] = []
+                        history.gradient_norms[name].append(grad_norm)
+\end{minted}
+
+El \textit{gradient clipping} limita la norma L2 global de los gradientes a un valor máximo de 5.0, previniendo actualizaciones desproporcionadas que podrían desestabilizar el entrenamiento.
+
+% --- Gradient clipping ---
+\begin{minted}{python}
+            # Gradient clipping: limit L2 norm of all gradients
+            # to max_norm (5.0) to prevent exploding gradients.
+            # Applied after loss.backward() and before
+            # optimizer.step() to ensure stable updates.
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(), max_norm=clip_norm
+            )
+
+            # Optimizer step
+            optimizer.step()
+
+            # Track metrics
+            running_loss += loss.item() * inputs.size(0)
+            predictions = (torch.sigmoid(logits) > 0.5).long()
+            correct += (predictions == labels.long()).sum().item()
+            total += labels.size(0)
+\end{minted}
+
+El mecanismo de \textit{early stopping} compara la pérdida de validación de cada época con la mejor registrada. Si no hay mejora durante un número configurable de épocas (\texttt{patience}), el entrenamiento se detiene anticipadamente y se conserva el mejor checkpoint.
+
+% --- Early stopping: comparación val_loss, guardado de checkpoint ---
+\begin{minted}{python}
+        # --- Early stopping check ---
+        if epoch_val_loss < best_val_loss:
+            best_val_loss = epoch_val_loss
+            epochs_without_improvement = 0
+            # Save best checkpoint
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"  Best model saved to {checkpoint_path}")
+        else:
+            epochs_without_improvement += 1
+            print(
+                f"  No improvement "
+                f"({epochs_without_improvement}/{patience})"
+            )
+            if epochs_without_improvement >= patience:
+                print(
+                    f"  Early stopping after epoch {epoch + 1}"
+                )
+                break
+\end{minted}
+
+% =============================================================================
+% FRAGMENTOS DE data.py
+% =============================================================================
+
+\subsection{Preprocesamiento de Datos}
+
+La función \texttt{clean\_text} implementa el pipeline de limpieza de texto: elimina etiquetas HTML, convierte a minúsculas, remueve caracteres no alfabéticos y normaliza los espacios mediante tokenización y reconstrucción.
+
+% --- Función clean_text — Preprocesamiento de texto ---
+\begin{minted}{python}
+def clean_text(text: str) -> str:
+    """Clean review text: remove HTML, lowercase,
+    remove punctuation, tokenize."""
+    # Step 1: Remove HTML tags (e.g., <br />, <p>)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # Step 2: Convert to lowercase
+    text = text.lower()
+    # Step 3: Remove non-alpha characters
+    # (keep only letters and spaces)
+    text = re.sub(r'[^a-z\s]', '', text)
+    # Step 4: Tokenize by whitespace and rejoin
+    # to normalize multiple spaces
+    tokens = text.split()
+    return ' '.join(tokens)
+\end{minted}
+
+La función \texttt{pad\_sequence} garantiza que todas las secuencias tengan exactamente la misma longitud, truncando las que exceden el máximo y rellenando con ceros (token PAD) las más cortas. Esto es necesario para el procesamiento en lotes con tensores de dimensión fija.
+
+% --- Función pad_sequence — Truncamiento y padding ---
+\begin{minted}{python}
+def pad_sequence(encoded: list[int], max_len: int) -> list[int]:
+    """Pad or truncate a sequence to exactly max_len.
+
+    If longer than max_len: truncate (keep first max_len tokens).
+    If shorter than max_len: pad with zeros (PAD token = 0).
+    This ensures all sequences in a batch have uniform length
+    for efficient tensor operations.
+    """
+    if len(encoded) > max_len:
+        return encoded[:max_len]
+    elif len(encoded) < max_len:
+        return encoded + [0] * (max_len - len(encoded))
+    else:
+        return list(encoded)
+\end{minted}
+
+% =============================================================================
+% FRAGMENTOS DE evaluate.py
+% =============================================================================
+
+\subsection{Evaluación e Inferencia}
+
+El proceso de inferencia carga el mejor checkpoint guardado durante el entrenamiento, ejecuta el modelo en modo evaluación sin cálculo de gradientes, y aplica un umbral de 0.5 sobre la salida sigmoide para obtener las predicciones binarias finales.
+
+% --- Inferencia: carga de checkpoint, forward sin gradientes, sigmoid > 0.5 ---
+\begin{minted}{python}
+def evaluate_model(
+    model: nn.Module,
+    test_loader: DataLoader,
+    device: torch.device,
+    checkpoint_path: str,
+    rnn_type: str,
+) -> EvaluationResults:
+    # Load checkpoint weights
+    state_dict = torch.load(
+        checkpoint_path, map_location=device, weights_only=True
+    )
+    model.load_state_dict(state_dict)
+
+    # Move model to device and set eval mode
+    model = model.to(device)
+    model.eval()
+
+    all_predictions: list[int] = []
+    all_labels: list[int] = []
+
+    # Inference with no gradient computation
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            logits = model(inputs).squeeze(1)
+
+            # Apply sigmoid and threshold at 0.5
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).long()
+
+            all_predictions.extend(preds.cpu().numpy().tolist())
+            all_labels.extend(labels.cpu().numpy().tolist())
+\end{minted}

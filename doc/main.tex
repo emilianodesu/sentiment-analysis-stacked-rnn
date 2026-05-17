@@ -1,0 +1,67 @@
+\documentclass[12pt,letterpaper]{article}
+
+\input{preamble}
+\input{config}
+\input{format}
+
+\begin{document}
+
+% -------------------- PORTADA --------------------
+\begin{titlepage}
+    \centering
+
+    \includegraphics[width=0.7\textwidth]{img/logo.png}\par
+    \vspace{1cm}
+
+    {\Large\bfseries \universidad \par}
+    {\large \instituto \par}
+
+    \vspace{1cm}
+    \rule{0.9\textwidth}{0.8pt}\par
+
+    {\huge\bfseries \titulo \par}
+    {\large \subtitulo \par}
+
+    \rule{0.9\textwidth}{0.8pt}\par
+
+    \vspace{1cm}
+
+    \begin{tabular}{p{4cm} p{8cm}}
+        \textbf{Materia:} & \materia \\
+        \textbf{Profesor:} & \profesor \\
+        \textbf{Ayudante:} & \ayudante \\
+        \textbf{Semestre:} & \semestre \\
+    \end{tabular}
+
+    \vspace{1.5cm}
+
+    {\large\bfseries Alumno}\\
+    \autorA \\
+    %\autorB
+
+    \vfill
+    {\large \lugar, \fecha \par}
+
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% -------------------- SECCIONES --------------------
+\input{sections/introduccion}
+\newpage
+\input{sections/arquitectura}
+\newpage
+\input{sections/metodologia}
+\newpage
+\input{sections/resultados}
+\newpage
+\input{sections/gradientes}
+\newpage
+\input{sections/reflexiones}
+\newpage
+\input{sections/codigo}
+\newpage
+\input{sections/referencias}
+
+\end{document}

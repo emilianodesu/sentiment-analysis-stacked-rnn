@@ -1,0 +1,139 @@
+\section{Reflexiones y Discusión}
+
+A continuación se presentan las reflexiones sobre el experimento de análisis de sentimiento con redes neuronales recurrentes apiladas, respondiendo las 8 preguntas de análisis requeridas por el curso.
+
+\subsection{Efecto del número de capas apiladas en la capacidad de aprendizaje}
+
+En este experimento se utilizaron 2 capas recurrentes apiladas con un tamaño oculto de 256 unidades por capa. La arquitectura apilada permite que cada capa aprenda representaciones a diferentes niveles de abstracción: la primera capa captura patrones locales y sintácticos, mientras que la segunda capa aprende dependencias semánticas más complejas.
+
+\textbf{Comparación LSTM vs GRU:} Los resultados experimentales muestran que el LSTM alcanzó una accuracy de 85.12\% y el GRU de 86.46\% en el conjunto de test. Con 2 capas, ambos modelos lograron capturar suficiente complejidad para la tarea de clasificación binaria de sentimiento, aunque el GRU superó al LSTM por 1.34 puntos porcentuales.
+
+El uso de múltiples capas incrementa la capacidad del modelo pero también el riesgo de sobreajuste. La diferencia entre accuracy de entrenamiento y validación fue de 1.55\% para LSTM y 5.48\% para GRU, lo que indica que el GRU, a pesar de tener mejor rendimiento en test, presenta un sobreajuste moderado mayor que fue controlado por el dropout y early stopping.
+
+\subsection{Impacto del dropout entre capas RNN en la generalización}
+
+Se aplicó un dropout de 0.3 entre las capas recurrentes y un dropout de 0.5 en la capa de embedding. Esta regularización es fundamental para prevenir el sobreajuste en arquitecturas profundas.
+
+\textbf{Comparación LSTM vs GRU:}
+\begin{itemize}
+    \item LSTM: accuracy de entrenamiento final = 87.31\%, accuracy de validación = 85.76\% (gap: 1.55\%)
+    \item GRU: accuracy de entrenamiento final = 92.28\%, accuracy de validación = 86.80\% (gap: 5.48\%)
+\end{itemize}
+
+El dropout entre capas RNN (0.3) actúa como un regularizador que fuerza a cada capa a aprender representaciones más robustas e independientes. Sin este dropout, las capas superiores podrían depender excesivamente de activaciones específicas de las capas inferiores. El dropout en el embedding (0.5) previene que el modelo memorice combinaciones específicas de palabras, promoviendo una mejor generalización a vocabulario no visto durante el entrenamiento.
+
+Los resultados en test (LSTM: 85.12\%, GRU: 86.46\%) confirman que la combinación de dropout aplicada permite una buena generalización a datos no vistos, siendo el GRU el modelo que mejor generaliza a pesar de su mayor gap train-val.
+
+\subsection{Comparación de velocidad de convergencia LSTM vs GRU}
+
+\textbf{Comparación de convergencia:}
+\begin{itemize}
+    \item LSTM alcanzó su mejor accuracy de validación (85.76\%) en la época 10 de 10 entrenadas.
+    \item GRU alcanzó su mejor accuracy de validación (87.02\%) en la época 7 de 10 entrenadas.
+\end{itemize}
+
+\textbf{Tiempos de entrenamiento:}
+\begin{itemize}
+    \item LSTM: 184.1 segundos totales (18.4 s/época)
+    \item GRU: 1042.0 segundos totales (104.2 s/época)
+\end{itemize}
+
+El GRU convergió más rápido que el LSTM en términos de épocas, alcanzando su mejor rendimiento en la época 7 frente a la época 10 del LSTM. Esto sugiere que la arquitectura simplificada del GRU (2 compuertas vs 3 del LSTM) permite una optimización más eficiente del espacio de parámetros. En cuanto a tiempo por época, el LSTM fue más rápido (18.4 s/época vs 104.2 s/época del GRU), con un ratio LSTM/GRU de 0.18x.
+
+\subsection{Diferencias en el flujo de gradientes entre LSTM y GRU}
+
+El monitoreo de gradientes durante los primeros 100 pasos de entrenamiento revela diferencias en cómo fluyen los gradientes a través de cada arquitectura.
+
+\textbf{Normas de gradiente promedio:}
+\begin{itemize}
+    \item LSTM: 0.079348
+    \item GRU: 0.051686
+\end{itemize}
+
+\textbf{Comparación LSTM vs GRU por capas:} El LSTM presenta normas de gradiente promedio mayores (0.079348 vs 0.051686 del GRU). En el desglose por capas, los pesos recurrentes del LSTM (\texttt{weight\_hh\_l1}) alcanzan una media de 0.103979 con máximo de 0.508858, mientras que en el GRU los valores correspondientes son 0.026597 de media y 0.114147 de máximo.
+
+No se detectaron patrones de gradientes que se desvanecen ni explotan en ninguno de los dos modelos, lo cual indica que tanto el gradient clipping (max\_norm=5.0) como las compuertas internas de ambas arquitecturas cumplen su función de mantener un flujo de gradientes estable. El LSTM utiliza tres compuertas (entrada, olvido, salida) y una celda de memoria separada que permite un flujo de gradientes más directo a través del tiempo. El GRU simplifica esto con dos compuertas (reset, update), lo que resulta en normas de gradiente ligeramente menores pero igualmente estables.
+
+\subsection{Efecto de la longitud de secuencia (padding/truncamiento) en el rendimiento}
+
+Se utilizó una longitud máxima de secuencia de 200 tokens. Las reseñas más largas se truncan y las más cortas se rellenan con el token \texttt{<PAD>} (índice 0).
+
+\textbf{Comparación LSTM vs GRU:}
+\begin{itemize}
+    \item LSTM: accuracy 85.12\%, F1-Score 85.08\%
+    \item GRU: accuracy 86.46\%, F1-Score 86.67\%
+\end{itemize}
+
+La elección de 200 tokens representa un balance entre captura de información semántica, eficiencia computacional y padding excesivo. Las reseñas de IMDB tienen longitudes variables; con 200 tokens se captura la mayor parte del contenido relevante para determinar el sentimiento. Secuencias más largas incrementarían linealmente el tiempo de cómputo y el uso de memoria en las capas recurrentes.
+
+Los resultados sugieren que 200 tokens es suficiente para esta tarea, dado que ambos modelos alcanzan un rendimiento competitivo (F1 > 85\%). El GRU aprovecha mejor esta longitud de secuencia, superando al LSTM en F1-Score por 1.59 puntos porcentuales.
+
+\subsection{Papel de la capa de embedding en la representación del sentimiento}
+
+La capa de embedding transforma cada token (de un vocabulario de 25,000 palabras) en un vector denso de 128 dimensiones. Esta transformación es fundamental por tres razones:
+
+\begin{enumerate}
+    \item \textbf{Representación semántica:} Los embeddings aprenden a posicionar palabras con significado similar en regiones cercanas del espacio vectorial.
+    \item \textbf{Reducción de dimensionalidad:} En lugar de representaciones one-hot de 25,000 dimensiones, cada palabra se codifica en solo 128 dimensiones.
+    \item \textbf{Captura de polaridad:} Para análisis de sentimiento, los embeddings aprenden a separar palabras positivas de negativas en el espacio vectorial.
+\end{enumerate}
+
+\textbf{Comparación LSTM vs GRU:} El dropout de 0.5 aplicado después del embedding actúa como regularización para ambos modelos. Ambos (LSTM: 85.12\%, GRU: 86.46\%) logran un rendimiento sólido, lo que confirma que los embeddings de 128 dimensiones capturan suficiente información semántica para la tarea. El GRU muestra una capacidad ligeramente superior para explotar las representaciones aprendidas por la capa de embedding, reflejado en su mayor recall (88.03\% vs 84.88\% del LSTM).
+
+\subsection{Efectividad del early stopping en la prevención del sobreajuste}
+
+\textbf{Configuración:} patience=5 épocas, máximo 10 épocas.
+
+\textbf{Comparación LSTM vs GRU:}
+\begin{itemize}
+    \item LSTM: entrenó 10 de 10 épocas máximas (gap train-val: 1.55\%)
+    \item GRU: entrenó 10 de 10 épocas máximas (gap train-val: 5.48\%)
+\end{itemize}
+
+Ningún modelo activó el early stopping, lo que sugiere que ambos seguían mejorando o que el patience fue suficiente para la cantidad de épocas configuradas. El mecanismo guarda el mejor checkpoint basado en la validation loss más baja, asegurando que el modelo final sea el que mejor generaliza, independientemente de si el entrenamiento continuó después del punto óptimo.
+
+La combinación de early stopping con dropout (0.3 entre capas RNN, 0.5 en embedding) proporciona una defensa multicapa contra el sobreajuste. El LSTM muestra un sobreajuste mínimo (1.55\%) mientras que el GRU presenta un gap mayor (5.48\%), indicando que el early stopping habría sido más beneficioso para el GRU si se hubieran configurado más épocas de entrenamiento.
+
+\subsection{Trade-offs entre LSTM y GRU para análisis de sentimiento}
+
+La siguiente tabla resume la comparación cuantitativa completa entre ambas arquitecturas:
+
+\begin{table}[H]
+\centering
+\caption{Comparación cuantitativa de trade-offs entre LSTM y GRU.}
+\label{tab:tradeoffs}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Métrica} & \textbf{LSTM} & \textbf{GRU} & \textbf{Diferencia} \\
+\midrule
+Accuracy & 85.12\% & 86.46\% & $-$1.34\% \\
+Precision & 85.29\% & 85.34\% & $-$0.05\% \\
+Recall & 84.88\% & 88.03\% & $-$3.15\% \\
+F1-Score & 85.08\% & 86.67\% & $-$1.58\% \\
+Tiempo total & 184.1 s & 1042.0 s & $-$857.8 s \\
+Épocas entrenadas & 10 & 10 & 0 \\
+Norma grad. promedio & 0.079348 & 0.051686 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Como se observa en la Tabla~\ref{tab:tradeoffs}, los trade-offs principales son:
+
+\begin{enumerate}
+    \item \textbf{Rendimiento vs. Complejidad:} El GRU supera al LSTM en accuracy (1.34\% de diferencia) y F1-Score (1.58\%), a pesar de tener menos parámetros por su arquitectura simplificada de 2 compuertas.
+    \item \textbf{Convergencia:} El GRU converge más rápido, alcanzando su mejor rendimiento en la época 7 frente a la época 10 del LSTM.
+    \item \textbf{Estabilidad de gradientes:} Ambos modelos mantienen gradientes estables, con normas promedio de 0.079348 (LSTM) y 0.051686 (GRU), ambas muy por debajo del umbral de clipping de 5.0.
+    \item \textbf{Recall:} El GRU muestra un recall significativamente mayor (88.03\% vs 84.88\%), indicando mejor capacidad para identificar reseñas positivas.
+\end{enumerate}
+
+\subsection{Conclusión general}
+
+Este experimento comparó LSTM y GRU bajo condiciones idénticas (seed=42, 2 capas, 256 unidades ocultas, dropout=0.3, lr=0.001) para análisis de sentimiento en IMDB.
+
+\textbf{Mejor rendimiento según F1-Score:} El GRU obtuvo el mejor F1-Score con 86.67\%, superando al LSTM (85.08\%) por 1.59 puntos porcentuales. Este resultado se debe principalmente a su mayor recall (88.03\% vs 84.88\%).
+
+\textbf{Efectividad de la regularización:} La combinación de dropout (0.3 entre capas RNN, 0.5 en embedding) y early stopping (patience=5) controló efectivamente el sobreajuste en ambos modelos. El LSTM mostró un gap train-val de solo 1.55\%, mientras que el GRU presentó un gap de 5.48\%, sugiriendo que el GRU podría beneficiarse de una regularización más agresiva.
+
+\textbf{Estabilidad del flujo de gradientes:} No se detectaron problemas de vanishing ni exploding gradients en ningún modelo. Las normas promedio (LSTM: 0.079348, GRU: 0.051686) se mantuvieron estables y muy por debajo del umbral de gradient clipping (max\_norm=5.0), confirmando la efectividad tanto de las compuertas internas como del mecanismo de clipping.
+
+Para esta tarea específica de clasificación binaria de sentimiento, la diferencia entre LSTM y GRU es marginal (1.34\% en accuracy), sugiriendo que el GRU puede ser preferible por su menor complejidad computacional y convergencia más rápida cuando el rendimiento es comparable.

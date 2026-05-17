@@ -1,0 +1,108 @@
+\section{Introducción}
+
+El análisis de sentimientos es una tarea fundamental del procesamiento de lenguaje natural que consiste en determinar la polaridad emocional de un texto. En este trabajo abordamos el problema de \textbf{clasificación binaria de sentimiento}: dada una reseña de película del dataset IMDB, el objetivo es clasificarla como \emph{positiva} o \emph{negativa}. Este dominio resulta particularmente interesante porque las reseñas contienen dependencias de largo alcance, negaciones, sarcasmo y estructuras sintácticas complejas que requieren un modelado secuencial adecuado.
+
+Las redes neuronales recurrentes (RNN) son la familia de arquitecturas naturalmente diseñada para procesar secuencias de longitud variable, ya que mantienen un estado oculto que se actualiza en cada paso temporal incorporando la información del token actual y del contexto previo. Sin embargo, las RNN simples sufren del problema de \emph{vanishing gradients}, lo que dificulta el aprendizaje de dependencias a largo plazo. Las arquitecturas LSTM \cite{hochreiter1997} y GRU \cite{cho2014} resuelven este problema mediante mecanismos de compuertas que regulan el flujo de información a través del tiempo.
+
+En este reporte presentamos un estudio comparativo entre arquitecturas LSTM y GRU apiladas (\emph{Stacked RNN}) aplicadas a la clasificación de sentimiento en IMDB, analizando su rendimiento, velocidad de convergencia y estabilidad del flujo de gradientes.
+
+\section{Marco Teórico}
+
+\subsection{Notación}
+
+A lo largo de este documento utilizamos la siguiente notación. Sea $x_t \in \mathbb{R}^d$ el vector de entrada en el paso temporal $t$ (proveniente de la capa de embedding) y $h_{t-1} \in \mathbb{R}^h$ el estado oculto del paso anterior, donde $d$ es la dimensión de entrada y $h$ la dimensión oculta. Definimos:
+
+\begin{itemize}
+    \item $W \in \mathbb{R}^{h \times d}$: matriz de pesos que transforma la entrada $x_t$.
+    \item $U \in \mathbb{R}^{h \times h}$: matriz de pesos que transforma el estado oculto previo $h_{t-1}$.
+    \item $b \in \mathbb{R}^h$: vector de bias.
+    \item $\sigma(\cdot)$: función sigmoide, $\sigma(z) = \frac{1}{1 + e^{-z}}$, que produce valores en $(0, 1)$ utilizados como compuertas.
+    \item $\tanh(\cdot)$: tangente hiperbólica, que produce valores en $(-1, 1)$ utilizados para candidatos de estado.
+    \item $\odot$: producto elemento a elemento (producto de Hadamard).
+\end{itemize}
+
+Los subíndices en las matrices ($W_f$, $U_i$, $b_o$, etc.) indican a qué compuerta pertenece cada conjunto de parámetros.
+
+\subsection{Long Short-Term Memory (LSTM)}
+
+La celda LSTM \cite{hochreiter1997} introduce tres compuertas y un estado de celda $c_t$ que permite el flujo de gradientes a largo plazo. Las ecuaciones que gobiernan su dinámica son las siguientes.
+
+La \textbf{compuerta de olvido} determina qué información del estado de celda anterior se descarta:
+\begin{equation}
+    f_t = \sigma(W_f x_t + U_f h_{t-1} + b_f)
+    \label{eq:lstm_forget}
+\end{equation}
+
+La \textbf{compuerta de entrada} controla qué nueva información se almacena en el estado de celda:
+\begin{equation}
+    i_t = \sigma(W_i x_t + U_i h_{t-1} + b_i)
+    \label{eq:lstm_input}
+\end{equation}
+
+El \textbf{candidato de celda} genera los valores candidatos que podrían agregarse al estado:
+\begin{equation}
+    \tilde{c}_t = \tanh(W_c x_t + U_c h_{t-1} + b_c)
+    \label{eq:lstm_candidate}
+\end{equation}
+
+El \textbf{estado de celda} se actualiza combinando el olvido selectivo del estado anterior con la nueva información filtrada por la compuerta de entrada:
+\begin{equation}
+    c_t = f_t \odot c_{t-1} + i_t \odot \tilde{c}_t
+    \label{eq:lstm_cell}
+\end{equation}
+
+Finalmente, la \textbf{compuerta de salida} y el \textbf{estado oculto} determinan qué parte del estado de celda se expone como salida:
+\begin{equation}
+    \begin{aligned}
+        o_t &= \sigma(W_o x_t + U_o h_{t-1} + b_o) \\
+        h_t &= o_t \odot \tanh(c_t)
+    \end{aligned}
+    \label{eq:lstm_output}
+\end{equation}
+
+El mecanismo clave del LSTM es el estado de celda $c_t$ (Ecuación~\eqref{eq:lstm_cell}), que actúa como una ``autopista de información'' donde los gradientes pueden fluir sin degradarse, gracias a que la compuerta de olvido \eqref{eq:lstm_forget} permite mantener información relevante de pasos temporales lejanos.
+
+\subsection{Gated Recurrent Unit (GRU)}
+
+La GRU \cite{cho2014} simplifica la arquitectura LSTM eliminando el estado de celda separado y utilizando únicamente dos compuertas. A pesar de tener menos parámetros, logra un rendimiento comparable en muchas tareas.
+
+La \textbf{compuerta de reset} determina cuánto del estado oculto anterior se ignora al calcular el candidato:
+\begin{equation}
+    r_t = \sigma(W_r x_t + U_r h_{t-1} + b_r)
+    \label{eq:gru_reset}
+\end{equation}
+
+La \textbf{compuerta de actualización} controla el balance entre mantener el estado anterior y adoptar el nuevo candidato:
+\begin{equation}
+    z_t = \sigma(W_z x_t + U_z h_{t-1} + b_z)
+    \label{eq:gru_update}
+\end{equation}
+
+El \textbf{candidato oculto} se calcula aplicando la compuerta de reset al estado anterior:
+\begin{equation}
+    \tilde{h}_t = \tanh(W_h x_t + U_h (r_t \odot h_{t-1}) + b_h)
+    \label{eq:gru_candidate}
+\end{equation}
+
+El \textbf{estado oculto} se obtiene como interpolación lineal entre el estado anterior y el candidato, controlada por la compuerta de actualización:
+\begin{equation}
+    h_t = (1 - z_t) \odot h_{t-1} + z_t \odot \tilde{h}_t
+    \label{eq:gru_hidden}
+\end{equation}
+
+Nótese que cuando $z_t \approx 0$ en la Ecuación~\eqref{eq:gru_hidden}, el estado se preserva sin cambios (análogo a la compuerta de olvido del LSTM en \eqref{eq:lstm_forget}), mientras que cuando $z_t \approx 1$, el estado se reemplaza completamente por el candidato \eqref{eq:gru_candidate}. La compuerta de reset \eqref{eq:gru_reset} permite al modelo ``olvidar'' selectivamente el pasado al calcular el nuevo candidato.
+
+\subsection{Redes Recurrentes Apiladas (Stacked RNN)}
+
+Una \emph{Stacked RNN} consiste en apilar múltiples capas recurrentes de forma que la salida de una capa sirve como entrada para la siguiente. Formalmente, si denotamos por $h_t^{(l)}$ el estado oculto de la capa $l$ en el paso temporal $t$, entonces:
+
+\begin{equation}
+    h_t^{(l)} = \text{RNN}^{(l)}(h_t^{(l-1)},\; h_{t-1}^{(l)})
+    \label{eq:stacked_rnn}
+\end{equation}
+
+\noindent donde $h_t^{(0)} = x_t$ es la entrada original (el embedding del token) y $\text{RNN}^{(l)}$ puede ser una celda LSTM (Ecuaciones~\eqref{eq:lstm_forget}--\eqref{eq:lstm_output}) o GRU (Ecuaciones~\eqref{eq:gru_reset}--\eqref{eq:gru_hidden}).
+
+El apilamiento de capas permite que la red aprenda \textbf{representaciones jerárquicas} del texto: las capas inferiores capturan patrones locales y sintácticos (n-gramas, estructura de frases), mientras que las capas superiores combinan estas representaciones para extraer semántica de mayor nivel de abstracción (sentimiento global, relaciones entre cláusulas). Esta capacidad de abstracción progresiva es análoga a la que exhiben las redes convolucionales profundas en visión por computadora, donde las capas iniciales detectan bordes y las superiores reconocen objetos completos.
+
+En nuestro experimento utilizamos $L = 2$ capas apiladas (véase Ecuación~\eqref{eq:stacked_rnn}), lo que proporciona un balance entre capacidad representacional y eficiencia computacional.
