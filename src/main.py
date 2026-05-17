@@ -23,7 +23,7 @@ REQUIRED_MODULES = [
 
 
 def verify_setup() -> None:
-    """Verify that all required modules exist in the project directory.
+    """Verify that all required modules exist in the src/ directory.
 
     Checks for the presence of each module file listed in REQUIRED_MODULES.
 
@@ -31,15 +31,16 @@ def verify_setup() -> None:
         RuntimeError: If any required module file is missing, with a message
             listing all missing files.
     """
+    src_dir = os.path.dirname(os.path.abspath(__file__))
     missing = []
     for module_file in REQUIRED_MODULES:
-        if not os.path.isfile(module_file):
+        if not os.path.isfile(os.path.join(src_dir, module_file)):
             missing.append(module_file)
 
     if missing:
         raise RuntimeError(
             f"Missing required module files: {', '.join(missing)}. "
-            "Ensure all modules are present before running the pipeline."
+            "Ensure all modules are present in src/ before running the pipeline."
         )
 
 

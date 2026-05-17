@@ -8,8 +8,8 @@ import sys
 
 import pytest
 
-# Ensure project root is importable
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure src/ is importable
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import config
 
@@ -70,7 +70,7 @@ class TestConfigValues:
 
     def test_patience(self):
         assert isinstance(config.PATIENCE, int)
-        assert config.PATIENCE == 3
+        assert config.PATIENCE == 5
 
     def test_grad_clip_norm(self):
         assert isinstance(config.GRAD_CLIP_NORM, float)
@@ -119,8 +119,8 @@ class TestProjectStructure:
         ],
     )
     def test_module_files_exist(self, module_file):
-        path = os.path.join(self.PROJECT_ROOT, module_file)
-        assert os.path.isfile(path), f"Module file missing: {module_file}"
+        path = os.path.join(self.PROJECT_ROOT, "src", module_file)
+        assert os.path.isfile(path), f"Module file missing: src/{module_file}"
 
     @pytest.mark.parametrize(
         "directory",

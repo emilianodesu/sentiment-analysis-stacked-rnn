@@ -25,7 +25,9 @@ class TestVerifySetup:
 
     def test_raises_on_missing_module(self, tmp_path, monkeypatch):
         """Test that verify_setup raises RuntimeError for missing modules."""
-        monkeypatch.chdir(tmp_path)
+        import main as main_module
+
+        monkeypatch.setattr(main_module, "__file__", str(tmp_path / "main.py"))
         with pytest.raises(RuntimeError, match="Missing required module files"):
             verify_setup()
 

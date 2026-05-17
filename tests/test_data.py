@@ -10,8 +10,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-# Ensure project root is importable
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure src/ is importable
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from data import clean_text, download_imdb_dataset
 
