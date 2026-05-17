@@ -29,3 +29,14 @@ outputs/*
 !outputs/.gitkeep
 checkpoints/*
 !checkpoints/.gitkeep
+
+# LaTeX build artifacts
+doc/build/
+doc/_minted/
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
