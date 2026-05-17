@@ -59,6 +59,16 @@ class SentimentRNN(nn.Module):
             batch_first=True,
         )
 
+        # Initialize LSTM forget gate bias to 1.0 to encourage remembering
+        # early in training (Jozefowicz et al., 2015)
+        if rnn_type == "LSTM":
+            for name, param in self.rnn.named_parameters():
+                if "bias" in name:
+                    # LSTM bias is [input_gate, forget_gate, cell_gate, output_gate]
+                    # each of size hidden_size. Set forget gate bias to 1.0.
+                    n = param.size(0)
+                    param.data[n // 4 : n // 2].fill_(1.0)
+
         # Output linear layer
         self.fc = nn.Linear(hidden_size, 1)
 

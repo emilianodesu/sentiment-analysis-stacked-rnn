@@ -104,6 +104,7 @@ def main() -> None:
         train_loader=train_loader,
         val_loader=val_loader,
         device=device,
+        lr=config.LSTM_LEARNING_RATE,
     )
 
     # Step 6: Create and train GRU
