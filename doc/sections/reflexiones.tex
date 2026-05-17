@@ -1,6 +1,6 @@
 \section{Reflexiones y Discusión}
 
-A continuación se presentan las reflexiones sobre el experimento de análisis de sentimiento con redes neuronales recurrentes apiladas, respondiendo las 8 preguntas de análisis requeridas por el curso.
+A continuación se presentan las reflexiones sobre el experimento de análisis de sentimiento con redes neuronales recurrentes apiladas, respondiendo las preguntas de análisis requeridas por el curso.
 
 \subsection{Efecto del número de capas apiladas en la capacidad de aprendizaje}
 
@@ -125,6 +125,45 @@ Como se observa en la Tabla~\ref{tab:tradeoffs}, los trade-offs principales son:
     \item \textbf{Estabilidad de gradientes:} Ambos modelos mantienen gradientes estables, con normas promedio de 0.079348 (LSTM) y 0.051686 (GRU), ambas muy por debajo del umbral de clipping de 5.0.
     \item \textbf{Recall:} El GRU muestra un recall significativamente mayor (88.03\% vs 84.88\%), indicando mejor capacidad para identificar reseñas positivas.
 \end{enumerate}
+
+\subsection{Estabilidad numérica de BCEWithLogitsLoss frente a Sigmoid + BCELoss}
+
+En este experimento se utiliza \texttt{BCEWithLogitsLoss} en lugar de la combinación manual de una capa sigmoide seguida de \texttt{BCELoss}. Esta elección tiene implicaciones directas en la estabilidad numérica del entrenamiento.
+
+\textbf{Problema de la combinación Sigmoid + BCELoss:} Cuando se aplica la función sigmoide $\sigma(z) = \frac{1}{1+e^{-z}}$ por separado, los valores de salida se saturan en 0 o 1 para logits de gran magnitud. Al calcular $\log(\sigma(z))$ o $\log(1 - \sigma(z))$ en la entropía cruzada binaria, esto produce valores $\log(0) \to -\infty$, generando gradientes \texttt{NaN} o \texttt{Inf} que desestabilizan el entrenamiento.
+
+\textbf{Solución de BCEWithLogitsLoss:} Esta función combina la sigmoide y la BCE en una sola operación utilizando la identidad log-sum-exp:
+\[
+\text{loss}(z, y) = \max(z, 0) - z \cdot y + \log(1 + e^{-|z|})
+\]
+Esta reformulación evita el cálculo explícito de $\sigma(z)$ y garantiza estabilidad numérica para cualquier valor del logit $z$, eliminando el riesgo de overflow/underflow.
+
+\textbf{Comparación LSTM vs GRU:} Ambos modelos se benefician igualmente de esta estabilidad. Las normas de gradiente promedio (LSTM: 0.079348, GRU: 0.051686) se mantuvieron estables durante los 100 primeros pasos monitoreados, sin picos anómalos que indicarían inestabilidad numérica en el cálculo de la pérdida. Si se hubiera utilizado Sigmoid + BCELoss, los logits extremos producidos en las primeras épocas (cuando el modelo aún no ha convergido) podrían haber generado gradientes inestables, particularmente en el LSTM donde las normas máximas alcanzan 0.536250 en \texttt{weight\_ih\_l0}.
+
+\subsection{Análisis de falsos positivos y su impacto en Precision y Recall}
+
+El análisis de las matrices de confusión revela diferencias importantes en cómo cada modelo distribuye sus errores entre falsos positivos (FP) y falsos negativos (FN).
+
+\textbf{Métricas por modelo:}
+\begin{itemize}
+    \item LSTM: Precision = 85.29\%, Recall = 84.88\%
+    \item GRU: Precision = 85.34\%, Recall = 88.03\%
+\end{itemize}
+
+\textbf{Interpretación de los errores:}
+\begin{itemize}
+    \item \textbf{Precision} mide la proporción de predicciones positivas que son correctas: $\text{Precision} = \frac{TP}{TP + FP}$. Una precision de 85.29\% (LSTM) indica que aproximadamente el 14.71\% de las reseñas clasificadas como positivas son en realidad negativas (falsos positivos).
+    \item \textbf{Recall} mide la proporción de positivos reales que fueron detectados: $\text{Recall} = \frac{TP}{TP + FN}$. Un recall de 84.88\% (LSTM) indica que el 15.12\% de las reseñas positivas fueron clasificadas erróneamente como negativas (falsos negativos).
+\end{itemize}
+
+\textbf{Comparación LSTM vs GRU:} La diferencia más notable es el recall: el GRU alcanza 88.03\% frente al 84.88\% del LSTM (diferencia de 3.15 puntos porcentuales), mientras que la precision es prácticamente idéntica (85.34\% vs 85.29\%, diferencia de 0.05\%). Esto indica que el GRU produce significativamente menos falsos negativos que el LSTM, sin incrementar proporcionalmente los falsos positivos.
+
+En términos prácticos para análisis de sentimiento:
+\begin{itemize}
+    \item El GRU es más sensible para detectar reseñas positivas (menor tasa de falsos negativos), lo que resulta en un F1-Score superior (86.67\% vs 85.08\%).
+    \item Ambos modelos mantienen una tasa de falsos positivos similar ($\approx$14.7\%), lo que sugiere que la capacidad de distinguir reseñas genuinamente negativas es comparable entre arquitecturas.
+    \item El balance precision-recall del GRU (85.34\% / 88.03\%) es más favorable que el del LSTM (85.29\% / 84.88\%), donde precision y recall están casi equilibrados.
+\end{itemize}
 
 \subsection{Conclusión general}
 
