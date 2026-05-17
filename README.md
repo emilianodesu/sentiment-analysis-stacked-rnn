@@ -62,7 +62,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Instalar dependencias
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
 ## Uso

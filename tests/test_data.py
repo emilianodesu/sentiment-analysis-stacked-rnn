@@ -4,14 +4,10 @@ Validates: Requirements 1.2, 1.3, 1.4, 1.5, 1.6
 """
 
 import os
-import sys
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
-# Ensure src/ is importable
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from data import clean_text, download_imdb_dataset
 

@@ -4,12 +4,8 @@ Validates: Requirements 9.1, 9.5
 """
 
 import os
-import sys
 
 import pytest
-
-# Ensure src/ is importable
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 import config
 
