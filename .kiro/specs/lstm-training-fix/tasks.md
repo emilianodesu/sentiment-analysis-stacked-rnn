@@ -8,7 +8,7 @@
   - **GOAL**: Surface counterexamples that demonstrate the bug exists
   - **Scoped PBT Approach**: Scope the property to the concrete failing case: LSTM model instantiated before per-training `set_seed(42)`, then trained — accuracy should be >80% but will be ~50%
   - Write a property-based test (using Hypothesis) that:
-    - Calls `set_seed(42)` once (simulating Step 2 in current main.py)
+    - Calls `set_seed(42)` once (simulating Step 2 in current src/main.py)
     - Creates an LSTM `SentimentRNN` model (simulating Step 5 — before per-training seed)
     - Calls `set_seed(42)` again (simulating Step 6 — per-training seed reset)
     - Trains the LSTM model for a few epochs on the IMDB data
@@ -23,7 +23,7 @@
 - [x] 2. Write preservation property tests (BEFORE implementing fix)
   - **Property 2: Preservation** - GRU Accuracy and Pipeline Integrity
   - **IMPORTANT**: Follow observation-first methodology
-  - Observe: GRU model trained with current `main.py` ordering achieves ~87% test accuracy on UNFIXED code
+  - Observe: GRU model trained with current `src/main.py` ordering achieves ~87% test accuracy on UNFIXED code
   - Observe: Pipeline completes without errors on UNFIXED code (train → evaluate → visualize → reflexiones)
   - Observe: All 213 existing tests pass on UNFIXED code
   - Write property-based tests (using Hypothesis) that:
@@ -38,7 +38,7 @@
 
 - [x] 3. Fix for LSTM training failure due to model instantiation ordering
 
-  - [x] 3.1 Implement the fix in main.py
+  - [x] 3.1 Implement the fix in src/main.py
     - Move LSTM `SentimentRNN(...)` instantiation from Step 5 to immediately after `set_seed(config.SEED)` in the LSTM training block
     - Move GRU `SentimentRNN(...)` instantiation from Step 5 to immediately after `set_seed(config.SEED)` in the GRU training block
     - Move `print_model_summary(lstm_model)` call to after LSTM instantiation in its training block

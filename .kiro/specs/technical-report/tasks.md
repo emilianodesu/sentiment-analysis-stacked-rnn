@@ -39,7 +39,7 @@ Este plan implementa la generación del reporte técnico en LaTeX siguiendo el p
     - Describir capa de clasificación lineal (256 → 1)
     - Mencionar inicialización bias forget gate a 1.0 (Jozefowicz et al., 2015) con `\cite{jozefowicz2015}`
     - Incluir tabla de arquitectura con `booktabs` (`\toprule`, `\midrule`, `\bottomrule`), `\caption`, `\label{tab:...}` y `\ref` en texto
-    - Incluir fragmentos de código de `model.py` con `minted{python}` (clase `__init__`, forward, bias init — 15-40 líneas cada uno)
+    - Incluir fragmentos de código de `src/model.py` con `minted{python}` (clase `__init__`, forward, bias init — 15-40 líneas cada uno)
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 7.1, 7.2, 7.3, 7.4, 7.6, 9.3_
 
 - [x] 3. Generar secciones de metodología y resultados
@@ -51,7 +51,7 @@ Este plan implementa la generación del reporte técnico en LaTeX siguiendo el p
     - Especificar gradient clipping (norma L2 max 5.0)
     - Indicar semilla de reproducibilidad (seed=42) y batch_size=64
     - Documentar conjunto de prueba (25K muestras) y monitoreo de gradientes (100 pasos)
-    - Incluir fragmentos de código de `train.py` y `data.py` con `minted{python}` (optimizer, training loop, gradient clipping, early stopping, clean_text, pad_sequence)
+    - Incluir fragmentos de código de `src/train.py` y `src/data.py` con `minted{python}` (optimizer, training loop, gradient clipping, early stopping, clean_text, pad_sequence)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 9.1_
 
   - [x] 3.2 Crear `doc/sections/resultados.tex` — Resultados Experimentales
@@ -61,7 +61,7 @@ Este plan implementa la generación del reporte técnico en LaTeX siguiendo el p
     - Incluir figura `confusion_matrices.png` con `\label{fig:confusion_matrices}`
     - Incluir figura `gradient_norms.png` con `\label{fig:gradient_norms}`
     - Incluir al menos una `\ref{fig:...}` en texto previo a cada figura
-    - Incluir fragmento de código de `evaluate.py` (inferencia) con `minted{python}`
+    - Incluir fragmento de código de `src/evaluate.py` (inferencia) con `minted{python}`
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 7.1, 7.3, 9.1, 9.3, 9.4_
 
 - [x] 4. Generar secciones de análisis y reflexiones
@@ -83,7 +83,7 @@ Este plan implementa la generación del reporte técnico en LaTeX siguiendo el p
 
 - [x] 5. Generar secciones de código y referencias
   - [x] 5.1 Crear `doc/sections/codigo.tex` — Fragmentos de Código Fuente
-    - Seleccionar fragmentos relevantes de `model.py`, `train.py`, `data.py`, `evaluate.py` (15-40 líneas cada uno)
+    - Seleccionar fragmentos relevantes de `src/model.py`, `src/train.py`, `src/data.py`, `src/evaluate.py` (15-40 líneas cada uno)
     - Usar entorno `minted{python}` con configuración del preámbulo
     - Incluir comentario de encabezado (`% --- Descripción ---`) antes de cada bloque
     - Incluir párrafo descriptivo de 1-3 oraciones antes de cada fragmento

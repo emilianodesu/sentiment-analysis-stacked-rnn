@@ -2,23 +2,23 @@
 
 ## Overview
 
-The LSTM model in the Stacked RNN sentiment analysis pipeline fails to learn (~50% accuracy, equivalent to random chance) because its weights are initialized before `set_seed(42)` is called for training. In `main.py`, both models are instantiated at Step 5 after a single `set_seed(42)` call (Step 2), but when `set_seed(42)` is called again before each model's training (Step 6), only the random state for data iteration and dropout is reset — the model weights remain unchanged. The LSTM's initial weights (determined by the random state consumed during its creation) lead it into a degenerate local minimum where it predicts all-positive. The fix moves model instantiation to immediately before each model's training, after the per-model `set_seed(42)` call, ensuring deterministic and effective weight initialization.
+The LSTM model in the Stacked RNN sentiment analysis pipeline fails to learn (~50% accuracy, equivalent to random chance) because its weights are initialized before `set_seed(42)` is called for training. In `src/main.py`, both models are instantiated at Step 5 after a single `set_seed(42)` call (Step 2), but when `set_seed(42)` is called again before each model's training (Step 6), only the random state for data iteration and dropout is reset — the model weights remain unchanged. The LSTM's initial weights (determined by the random state consumed during its creation) lead it into a degenerate local minimum where it predicts all-positive. The fix moves model instantiation to immediately before each model's training, after the per-model `set_seed(42)` call, ensuring deterministic and effective weight initialization.
 
 ## Glossary
 
 - **Bug_Condition (C)**: The condition where the LSTM model is instantiated before the per-training `set_seed(42)` call, causing its weights to be initialized from a non-deterministic random state relative to training
 - **Property (P)**: The desired behavior where the LSTM model achieves discriminative accuracy (>80%) comparable to the GRU model (~87%)
 - **Preservation**: The GRU model's ~87% accuracy, pipeline reproducibility, and all existing test behavior must remain unchanged
-- **set_seed(42)**: Function in `train.py` that fixes random seeds for Python, NumPy, PyTorch CPU/CUDA, and cuDNN determinism
-- **SentimentRNN**: The model class in `model.py` supporting both LSTM and GRU architectures via `rnn_type` parameter
-- **train_model**: The training function in `train.py` that runs the training loop with early stopping and gradient monitoring
+- **set_seed(42)**: Function in `src/train.py` that fixes random seeds for Python, NumPy, PyTorch CPU/CUDA, and cuDNN determinism
+- **SentimentRNN**: The model class in `src/model.py` supporting both LSTM and GRU architectures via `rnn_type` parameter
+- **train_model**: The training function in `src/train.py` that runs the training loop with early stopping and gradient monitoring
 - **Degenerate local minimum**: A state where the LSTM predicts all samples as positive (91% recall, 50% precision), yielding ~50% accuracy
 
 ## Bug Details
 
 ### Bug Condition
 
-The bug manifests when the LSTM model is instantiated (Step 5 in `main.py`) after the initial `set_seed(42)` (Step 2), but before the per-training `set_seed(42)` (Step 6). The model's weight initialization is determined by the random state at creation time, not at training time. When `set_seed(42)` is called again before training, it resets the RNG but does NOT re-initialize the model weights, leaving the LSTM with weights that lead to a degenerate local minimum.
+The bug manifests when the LSTM model is instantiated (Step 5 in `src/main.py`) after the initial `set_seed(42)` (Step 2), but before the per-training `set_seed(42)` (Step 6). The model's weight initialization is determined by the random state at creation time, not at training time. When `set_seed(42)` is called again before training, it resets the RNG but does NOT re-initialize the model weights, leaving the LSTM with weights that lead to a degenerate local minimum.
 
 **Formal Specification:**
 ```
@@ -62,7 +62,7 @@ All inputs that do NOT involve the LSTM model's weight initialization ordering s
 
 Based on the bug description, the most likely issue is:
 
-1. **Model Instantiation Ordering**: In `main.py` lines 85-101, both models are created at Step 5, after the initial `set_seed(42)` at Step 2 (line 67). The random state consumed during LSTM creation (embedding init, RNN weight init, linear layer init) determines its initial weights. When `set_seed(42)` is called again at line 109 before LSTM training, it resets the RNG but the LSTM's weights are already fixed from creation time.
+1. **Model Instantiation Ordering**: In `src/main.py` lines 85-101, both models are created at Step 5, after the initial `set_seed(42)` at Step 2 (line 67). The random state consumed during LSTM creation (embedding init, RNN weight init, linear layer init) determines its initial weights. When `set_seed(42)` is called again at line 109 before LSTM training, it resets the RNG but the LSTM's weights are already fixed from creation time.
 
 2. **Weight Initialization Sensitivity**: The LSTM architecture with 2 stacked layers (num_layers=2) and hidden_size=256 is more sensitive to initial weight values than the GRU. The particular weight initialization from the post-Step-2 random state leads the LSTM into a degenerate local minimum where it predicts all-positive.
 
@@ -90,7 +90,7 @@ _For any_ pipeline execution after the fix is applied, the GRU model SHALL conti
 
 Assuming our root cause analysis is correct:
 
-**File**: `main.py`
+**File**: `src/main.py`
 
 **Function**: `main()`
 
@@ -136,7 +136,7 @@ The testing strategy follows a two-phase approach: first, surface counterexample
 **Test Cases**:
 1. **Seed-Weight Determinism Test**: Create a model after `set_seed(42)` and verify its weights are identical across runs (will pass on both fixed and unfixed code — baseline)
 2. **Initialization Ordering Test**: Create model BEFORE `set_seed(42)`, then call `set_seed(42)` — verify weights are NOT reset (demonstrates the bug mechanism)
-3. **LSTM Accuracy Test**: Train LSTM with current `main.py` ordering and assert accuracy > 80% (will FAIL on unfixed code, demonstrating the bug)
+3. **LSTM Accuracy Test**: Train LSTM with current `src/main.py` ordering and assert accuracy > 80% (will FAIL on unfixed code, demonstrating the bug)
 4. **Weight Divergence Test**: Create two models with different seed orderings and compare weights (will show they differ, confirming root cause)
 
 **Expected Counterexamples**:

@@ -6,9 +6,9 @@ Implementation of a modular sentiment analysis system comparing LSTM and GRU arc
 ## Tasks
 
 - [x] 1. Project Setup and Configuration {req:9.1, 9.2, 9.5, 9.6, 9.7}
-  - [x] 1.1. Create `config.py` with all centralized hyperparameters
+  - [x] 1.1. Create `src/config.py` with all centralized hyperparameters
   - [x] 1.2. Create `requirements.txt` with pinned versions (torch, datasets, numpy, matplotlib, seaborn, scikit-learn, pytest, hypothesis)
-  - [x] 1.3. Create empty module files: `data.py`, `model.py`, `train.py`, `evaluate.py`, `visualize.py`, `reflexiones.py`, `main.py`
+  - [x] 1.3. Create empty module files: `src/data.py`, `src/model.py`, `src/train.py`, `src/evaluate.py`, `src/visualize.py`, `src/reflexiones.py`, `src/main.py`
   - [x] 1.4. Create `outputs/` and `checkpoints/` directories with .gitkeep
   - [x] 1.5. Create `tests/` directory with `__init__.py`
   - [x] 1.6. Add tests that validate config values and project structure
@@ -16,7 +16,7 @@ Implementation of a modular sentiment analysis system comparing LSTM and GRU arc
   - [x] 1.8. Create `.gitignore` excluding `.venv/`, `__pycache__/`, IDE files, OS files, and generated outputs
   - [x] 1.9. Verify the build passes
 - [x] 2. Data Acquisition and Cleaning Module {req:1.1, 1.2, 1.3, 1.4, 1.5, 1.6} [depends:1]
-  - [x] 2.1. Implement `clean_text(text)` in `data.py`: remove HTML tags, lowercase, remove punctuation, tokenize by spaces
+  - [x] 2.1. Implement `clean_text(text)` in `src/data.py`: remove HTML tags, lowercase, remove punctuation, tokenize by spaces
   - [x] 2.2. Implement dataset download using Hugging Face `datasets` with error handling
   - [x] 2.3. Add tests for clean_text (HTML removal, lowercase, punctuation, tokenization)
   - [x] 2.4. Verify the build passes
@@ -40,7 +40,7 @@ Implementation of a modular sentiment analysis system comparing LSTM and GRU arc
   - [x] 5.5. Add tests for model consistency (Property 4) and error handling
   - [x] 5.6. Verify the build passes
 - [x] 6. Training Loop with Early Stopping and Gradient Monitoring {req:5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 7.3} [depends:4,5]
-  - [x] 6.1. Implement `set_seed(seed)` and `get_device()` in `train.py`
+  - [x] 6.1. Implement `set_seed(seed)` and `get_device()` in `src/train.py`
   - [x] 6.2. Implement `TrainingHistory` dataclass
   - [x] 6.3. Implement `train_model()` with BCEWithLogitsLoss, Adam (lr=0.001), gradient clipping (max_norm=5.0)
   - [x] 6.4. Add validation evaluation per epoch, early stopping (patience=3), best checkpoint saving
@@ -48,7 +48,7 @@ Implementation of a modular sentiment analysis system comparing LSTM and GRU arc
   - [x] 6.6. Add tests for determinism (Property 3) and early stopping (Property 5)
   - [x] 6.7. Verify the build passes
 - [x] 7. Evaluation and Metrics Module {req:6.1, 6.2, 6.3, 6.4, 6.5} [depends:6]
-  - [x] 7.1. Implement `EvaluationResults` dataclass in `evaluate.py`
+  - [x] 7.1. Implement `EvaluationResults` dataclass in `src/evaluate.py`
   - [x] 7.2. Implement `evaluate_model()`: load checkpoint, eval mode, no_grad, sigmoid > 0.5, sklearn metrics
   - [x] 7.3. Implement `print_comparison_table()` for side-by-side LSTM vs GRU results
   - [x] 7.4. Add tests for metrics integrity (Property 6)
@@ -61,7 +61,7 @@ Implementation of a modular sentiment analysis system comparing LSTM and GRU arc
   - [x] 8.5. Add tests that validate plot files are generated
   - [x] 8.6. Verify the build passes
 - [x] 9. Reflexiones Document Generator {req:8.1, 8.2, 8.3, 8.4} [depends:7,8]
-  - [x] 9.1. Implement `generate_reflexiones()` in `reflexiones.py`
+  - [x] 9.1. Implement `generate_reflexiones()` in `src/reflexiones.py`
   - [x] 9.2. Address all 8 reflection questions with experimental evidence
   - [x] 9.3. Include quantitative LSTM vs GRU comparisons and gradient analysis
   - [x] 9.4. Add tests that validate REFLEXIONES.md structure and content

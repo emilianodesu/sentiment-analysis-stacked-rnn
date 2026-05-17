@@ -107,10 +107,10 @@ Sistema de Análisis de Sentimientos que clasifica reseñas de películas del da
 **User Story:** As a developer, I want a well-organized, reproducible project, so that anyone can replicate the results.
 
 #### Acceptance Criteria
-1. WHEN the project is structured, THE system SHALL organize code into separate modules: `data.py`, `model.py`, `train.py`, `evaluate.py`, `visualize.py`, `reflexiones.py`, and a `main.py` entry point
+1. WHEN the project is structured, THE system SHALL organize code into separate modules within `src/`: `data.py`, `model.py`, `train.py`, `evaluate.py`, `visualize.py`, `reflexiones.py`, and a `main.py` entry point
 2. WHEN the project is set up, THE system SHALL include a `requirements.txt` with pinned dependency versions as the sole dependency specification
-3. WHEN `main.py` is executed, THE system SHALL verify that project setup is complete (all modules and config exist) before running the pipeline (data → train LSTM → train GRU → evaluate → visualize → generate reflexiones)
+3. WHEN `src/main.py` is executed, THE system SHALL verify that project setup is complete (all modules and config exist) before running the pipeline (data → train LSTM → train GRU → evaluate → visualize → generate reflexiones)
 4. WHEN any random operation occurs, THE system SHALL use seed=42 to ensure identical results across runs
-5. WHEN the project is structured, THE system SHALL include a `config.py` or similar with all hyperparameters centralized in one place
+5. WHEN the project is structured, THE system SHALL include a `src/config.py` or similar with all hyperparameters centralized in one place
 6. WHEN the project environment is set up, THE system SHALL use a Python virtual environment (`.venv/`) to isolate dependencies from the global Python installation
 7. WHEN the project is structured, THE system SHALL include a `.gitignore` file that excludes the virtual environment directory, `__pycache__/`, IDE files, OS files, and generated outputs

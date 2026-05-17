@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The LSTM model in the Stacked RNN sentiment analysis pipeline fails to learn, achieving only ~50% accuracy (random chance) while the GRU model converges correctly to ~87% accuracy under identical hyperparameters. The root cause is a model initialization ordering issue in `main.py`: both models are instantiated after a single `set_seed(42)` call, but `set_seed(42)` is called again before each model's training without re-initializing the model weights. The LSTM, created first, gets a particular weight initialization that leads to a degenerate local minimum (predicting all-positive), while the GRU benefits from different random state consumed after the LSTM's instantiation.
+The LSTM model in the Stacked RNN sentiment analysis pipeline fails to learn, achieving only ~50% accuracy (random chance) while the GRU model converges correctly to ~87% accuracy under identical hyperparameters. The root cause is a model initialization ordering issue in `src/main.py`: both models are instantiated after a single `set_seed(42)` call, but `set_seed(42)` is called again before each model's training without re-initializing the model weights. The LSTM, created first, gets a particular weight initialization that leads to a degenerate local minimum (predicting all-positive), while the GRU benefits from different random state consumed after the LSTM's instantiation.
 
 ## Bug Analysis
 

@@ -10,13 +10,13 @@ El sistema se organiza como un pipeline modular de 6 etapas ejecutadas secuencia
 
 ```mermaid
 flowchart LR
-    A[main.py] --> B[data.py]
-    A --> C[model.py]
-    A --> D[train.py]
-    A --> E[evaluate.py]
-    A --> F[visualize.py]
-    A --> G[config.py]
-    A --> R[reflexiones.py]
+    A[src/main.py] --> B[src/data.py]
+    A --> C[src/model.py]
+    A --> D[src/train.py]
+    A --> E[src/evaluate.py]
+    A --> F[src/visualize.py]
+    A --> G[src/config.py]
+    A --> R[src/reflexiones.py]
     
     B --> |DataLoaders| D
     C --> |Model| D
@@ -50,15 +50,18 @@ flowchart TD
 StackedRNN/
 ├── .venv/                 # Entorno virtual Python (excluido de git)
 ├── .gitignore             # Exclusiones de git (venv, __pycache__, etc.)
-├── config.py              # Hiperparámetros centralizados
-├── data.py                # Descarga, limpieza, vocab, DataLoaders
-├── model.py               # SentimentRNN (LSTM/GRU)
-├── train.py               # Loop de entrenamiento
-├── evaluate.py            # Evaluación y métricas
-├── visualize.py           # Generación de plots
-├── reflexiones.py         # Generación de REFLEXIONES.md
-├── main.py                # Punto de entrada
+├── conftest.py            # Configuración de pytest (agrega src/ al path)
 ├── requirements.txt       # Dependencias pinned
+├── src/                   # Código fuente del proyecto
+│   ├── __init__.py
+│   ├── config.py          # Hiperparámetros centralizados
+│   ├── data.py            # Descarga, limpieza, vocab, DataLoaders
+│   ├── model.py           # SentimentRNN (LSTM/GRU)
+│   ├── train.py           # Loop de entrenamiento
+│   ├── evaluate.py        # Evaluación y métricas
+│   ├── visualize.py       # Generación de plots
+│   ├── reflexiones.py     # Generación de REFLEXIONES.md
+│   └── main.py            # Punto de entrada
 ├── tests/                 # Tests unitarios y de propiedades
 │   ├── test_data.py
 │   ├── test_model.py
@@ -76,7 +79,7 @@ StackedRNN/
 
 ## Components and Interfaces
 
-### config.py
+### src/config.py
 - **Purpose**: Centralizar todos los hiperparámetros y configuración del proyecto
 - **Interface**:
   ```python
@@ -103,7 +106,7 @@ StackedRNN/
 - **Dependencies**: None
 - **Satisface:** REQ-9.4, REQ-9.5
 
-### data.py
+### src/data.py
 - **Purpose**: Descarga, limpieza, vocabulario, padding y DataLoaders
 - **Interface**:
   ```python
@@ -134,7 +137,7 @@ StackedRNN/
   ```
 - **Dependencies**: `datasets` (Hugging Face), `torch`, `config`
 
-### model.py
+### src/model.py
 - **Purpose**: Definición del modelo Stacked RNN configurable
 - **Interface**:
   ```python
@@ -151,7 +154,7 @@ StackedRNN/
   ```
 - **Dependencies**: `torch.nn`, `config`
 
-### train.py
+### src/train.py
 - **Purpose**: Loop de entrenamiento con early stopping, gradient clipping y monitoreo
 - **Interface**:
   ```python
@@ -181,7 +184,7 @@ StackedRNN/
   ```
 - **Dependencies**: `torch`, `numpy`, `time`, `config`, `model`
 
-### evaluate.py
+### src/evaluate.py
 - **Purpose**: Carga de checkpoints, predicción y cálculo de métricas
 - **Interface**:
   ```python
@@ -208,7 +211,7 @@ StackedRNN/
   ```
 - **Dependencies**: `torch`, `numpy`, `sklearn.metrics`, `config`
 
-### visualize.py
+### src/visualize.py
 - **Purpose**: Generación de todas las visualizaciones comparativas
 - **Interface**:
   ```python
@@ -237,7 +240,7 @@ StackedRNN/
   ```
 - **Dependencies**: `matplotlib`, `seaborn`, `numpy`, `sklearn.metrics`
 
-### reflexiones.py
+### src/reflexiones.py
 - **Purpose**: Generación automática del documento REFLEXIONES.md basado en resultados experimentales
 - **Interface**:
   ```python
@@ -251,7 +254,7 @@ StackedRNN/
   ```
 - **Dependencies**: `train` (TrainingHistory), `evaluate` (EvaluationResults), `config`
 
-### main.py
+### src/main.py
 - **Purpose**: Punto de entrada que orquesta el pipeline completo
 - **Interface**:
   ```python
