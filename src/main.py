@@ -4,10 +4,10 @@ import os
 
 import config
 from data import get_dataloaders
-from evaluate import EvaluationResults, evaluate_model, print_comparison_table
+from evaluate import evaluate_model, print_comparison_table
 from model import SentimentRNN, print_model_summary
 from reflexiones import generate_reflexiones
-from train import TrainingHistory, get_device, set_seed, train_model
+from train import get_device, set_seed, train_model
 from visualize import save_all_plots
 
 
@@ -73,7 +73,7 @@ def main() -> None:
 
     # Step 4: Load data
     print("Loading IMDB dataset...")
-    train_loader, val_loader, test_loader, vocab = get_dataloaders(
+    train_loader, val_loader, test_loader, _vocab = get_dataloaders(
         batch_size=config.BATCH_SIZE, seed=config.SEED
     )
     print(
